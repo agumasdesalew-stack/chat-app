@@ -23,6 +23,7 @@ class _AuthPageState extends State<AuthPage> {
     if (!_formKey.currentState!.validate()) return;
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     try {
+      setState(() => _error = null);
       if (_isSignup) {
         await authProvider.signUp(
           firstName: _firstNameController.text,
@@ -38,7 +39,7 @@ class _AuthPageState extends State<AuthPage> {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     }
   }
 

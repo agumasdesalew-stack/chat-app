@@ -6,24 +6,35 @@ class MessageService {
   final String currentUserId = Supabase.instance.client.auth.currentUser!.id;
 
   Future<List<MessageModel>> getMessages(String receiverId) async {
-    final response = await supabase
-        .from('messages')
-        .select()
-        .or(
-          'and(sender_id.eq.$currentUserId,receiver_id.eq.$receiverId),'
-          'and(sender_id.eq.$receiverId,receiver_id.eq.$currentUserId)'
-        )
-        .order('created_at', ascending: true);
+    try {
+      final response = await supabase
+          .from('messages')
+          .select()
+          .or(
+            'and(sender_id.eq.$currentUserId,receiver_id.eq.$receiverId),'
+            'and(sender_id.eq.$receiverId,receiver_id.eq.$currentUserId)'
+          )
+          .order('created_at', ascending: true);
 
-    return (response as List).map((json) => MessageModel.fromJson(json)).toList();
+      return (response as List).map((json) => MessageModel.fromJson(json)).toList();
+    } catch (e) {
+      print('Error fetching messages: $e');
+      rethrow;
+    }
   }
 
   Future<void> sendMessage(String receiverId, String content) async {
-    await supabase.from('messages').insert({
-      'sender_id': currentUserId,
-      'receiver_id': receiverId,
-      'content': content,
-    });
+    try {
+      await supabase.from('messages').insert({
+        'sender_id': currentUserId,
+        'receiver_id': receiverId,
+        'content': content,
+      });
+      print('Message inserted into database');
+    } catch (e) {
+      print('Error inserting message: $e');
+      rethrow;
+    }
   }
 
   Stream<List<MessageModel>> getMessagesStream(String receiverId) {
@@ -32,13 +43,28 @@ class MessageService {
         .stream(primaryKey: ['id'])
         .order('created_at', ascending: true)
         .map((data) {
+          print('Stream received ${data.length} messages');
           final messages = data.map((json) => MessageModel.fromJson(json)).toList();
-          // Filter messages client-side for the specific chat
           return messages
               .where((msg) =>
                   (msg.senderId == currentUserId && msg.receiverId == receiverId) ||
                   (msg.senderId == receiverId && msg.receiverId == currentUserId))
               .toList();
         });
+  }
+
+  Future<void> markMessagesAsRead(String senderId) async {
+    try {
+      await supabase
+          .from('messages')
+          .update({'is_read': true})
+          .eq('receiver_id', currentUserId)
+          .eq('sender_id', senderId)
+          .eq('is_read', false);
+      print('Messages marked as read for sender: $senderId');
+    } catch (e) {
+      print('Error marking messages as read: $e');
+      rethrow;
+    }
   }
 }
